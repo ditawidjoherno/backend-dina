@@ -20,6 +20,9 @@ return new class extends Migration
             $table->string('kelas')->nullable();         
             $table->enum('jenis_kelamin', ['L', 'P'])->nullable(); 
             $table->string('agama')->nullable();
+            $table->date('tanggal_lahir')->nullable();     // Tambahan
+            $table->string('nomor_hp')->nullable();        // Tambahan
+            $table->string('foto_profil')->nullable();     // Tambahan (misal: path file gambar)
             $table->string('email')->unique();            
             $table->string('password');
             $table->timestamps();

@@ -7,8 +7,9 @@ use App\Http\Controllers\UserController;
 use Laravel\Sanctum\Http\Controllers\CsrfCookieController;
 use App\Http\Controllers\AktivitasKegiatanController;
 use App\Http\Controllers\AbsensiController;
-use App\Http\Controllers\EkskulController;
-use App\Http\Controllers\DetailEkskulController;
+use App\Http\Controllers\PiketController;
+use App\Http\Controllers\StudyTourController;
+
 
 Route::get('/sanctum/csrf-cookie', [CsrfCookieController::class, 'show']);
 
@@ -16,27 +17,7 @@ Route::post('addUser', [AuthController::class, 'register']);
 Route::get('/users', [AuthController::class, 'index']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout']);
-Route::middleware('auth:sanctum')->get('user', [UserController::class, 'getUserData']); // User data API
-
-Route::prefix('kegiatan')->group(function () {
-    // GET /api/kegiatan
-    Route::get('/', [AktivitasKegiatanController::class, 'index']);
-
-    // POST /api/kegiatan
-    Route::post('/', [AktivitasKegiatanController::class, 'store']);  
-    
-    // GET /api/kegiatan/{id}
-    Route::get('/{id}', [AktivitasKegiatanController::class, 'show']);
-
-    // PUT /api/kegiatan/{id}
-    Route::put('/{id}', [AktivitasKegiatanController::class, 'update']);
-
-    // DELETE /api/kegiatan/{id}
-    Route::delete('/{id}', [AktivitasKegiatanController::class, 'destroy']);
-
-    // GET /api/kegiatan/{id}/peserta
-    Route::get('/{id}/peserta', [AktivitasKegiatanController::class, 'getPeserta']);
-});
+Route::middleware('auth:api')->get('/user', [UserController::class, 'getUserData']);
 
 Route::apiResource('absensi', AbsensiController::class);
 
@@ -50,10 +31,23 @@ Route::get('/siswa', [UserController::class, 'getAllSiswa']);
 Route::get('/guru', [UserController::class, 'getAllGuru']);
 Route::get('/total-user', [UserController::class, 'getUsersWithTotal']);
 
-Route::middleware('auth:sanctum')->get('/user-profile', [UserController::class, 'getProfile']);
+Route::middleware('auth:api')->get('/user-profile', [UserController::class, 'getProfile']);
 
-Route::middleware('auth:sanctum')->put('/edit-profile', [UserController::class, 'updateProfile']);
+Route::middleware('auth:api')->put('/update-profile', [UserController::class, 'updateProfile']);
 
+Route::get('/jumlah-siswa', [UserController::class, 'siswaGender']);
+Route::get('/jumlah-guru', [UserController::class, 'guruGender']);
+
+Route::get('/siswa-kelas', [AbsensiController::class, 'getStudentsByClass']);  // ?kelas=X-A
+
+Route::post('/input-absensi', [AbsensiController::class, 'inputAbsensi']);              // Simpan absensi
+
+Route::get('/absensi', [AbsensiController::class, 'getAbsensi']);
+Route::get('/absensi-piket', [PiketController::class, 'getPiket']);
+Route::post('/input-piket', [PiketController::class, 'inputPiket']);              // Simpan absensi
+Route::get('/kontribusi-piket', [PiketController::class, 'rekapKontribusiBulanan']);
+Route::get('/absensi-tour', [StudyTourController::class, 'getStudyTour']);
+Route::post('/input-tour', [StudyTourController::class, 'inputStudyTour']); 
 // Route::middleware('auth:api')->get('/user', function (Request $request) {
 //     return $request->user();
 // });

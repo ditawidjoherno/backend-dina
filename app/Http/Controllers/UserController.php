@@ -10,24 +10,26 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class UserController extends Controller
 {
-    public function getUserData(Request $request)
-    {
-        // Get the authenticated user
-        $user = Auth::user();
+public function getUserData(Request $request)
+{
+    // Autentikasi user dari token JWT
+    $user = JWTAuth::parseToken()->authenticate();
 
-        if ($user) {
-            return response()->json([
-                'user' => $user
-            ], 200);
-        }
-
+    if ($user) {
         return response()->json([
-            'error' => 'User not authenticated'
-        ], 401);
+            'user' => $user
+        ], 200);
     }
+
+    return response()->json([
+        'error' => 'User not authenticated'
+    ], 401);
+}
+
     
     public function getUserCounts()
     {
@@ -103,69 +105,89 @@ public function getAllGuru()
         ], 200);
     }
 
-    public function getProfile(Request $request)
-    {
-        $user = $request->user(); // Ambil user yang sedang login
 
+public function getProfile(Request $request)
+{
+    $user = JWTAuth::parseToken()->authenticate(); // Ambil user dari token JWT
+
+    return response()->json([
+        'status' => 'success',
+        'data' => $user,
+    ], 200);
+}
+
+public function updateProfile(Request $request)
+{
+    // Ambil user yang sedang login
+    $user = auth()->user();
+
+    // Validasi input data
+    $validator = Validator::make($request->all(), [
+        'nama' => 'sometimes|string|max:255',
+        'email' => 'sometimes|email|unique:users,email,' . $user->id,
+        'foto_profil' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048', // Validasi untuk foto_profil
+        'nomor_hp' => 'sometimes|string|max:15',
+        'agama' => 'sometimes|string|max:255',
+        'jenis_kelamin' => 'sometimes|in:L,P',
+    ]);
+
+    if ($validator->fails()) {
         return response()->json([
-            'status' => 'success',
-            'data' => $user,
-        ], 200);
+            'message' => 'Validasi gagal.',
+            'errors' => $validator->errors()
+        ], 422);
     }
 
-    public function updateProfile(Request $request)
-    {
-        $user = auth()->user(); // Ambil data user yang sedang login
+    // Update data jika ada dalam request
+    $data = $request->only([
+        'nama', 'email', 'nomor_hp', 'agama', 'jenis_kelamin'
+    ]);
+    $user->fill($data);
 
-        // Tentukan validasi yang berbeda untuk setiap field
-        $validator = Validator::make($request->all(), [
-            'nama' => 'sometimes|string|max:255',
-            'email' => 'sometimes|email|unique:users,email,' . $user->id,
-            'foto_profil' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'nomor_hp' => 'sometimes|string|max:15',
-            'agama' => 'sometimes|string|max:255',
-            'jenis_kelamin' => 'sometimes|in:L,P',
+    // Jika ada upload foto baru
+    if ($request->hasFile('foto_profil')) {
+        // Hapus foto lama jika ada
+        if ($user->foto_profil && Storage::disk('public')->exists($user->foto_profil)) {
+            Storage::disk('public')->delete($user->foto_profil);
+        }
+
+        // Upload file dan simpan pathnya
+        $path = $request->file('foto_profil')->store('profiles', 'public');
+        $user->foto_profil = $path;
+    }
+
+    // Simpan perubahan user
+    $user->save();
+
+    // Kembalikan response
+    return response()->json([
+        'message' => 'Profil berhasil diperbarui.',
+        'user' => $user,
+    ]);
+}
+
+public function siswaGender()
+    {
+        $lakiLaki = User::where('role', 'siswa')->where('jenis_kelamin', 'L')->count();
+        $perempuan = User::where('role', 'siswa')->where('jenis_kelamin', 'P')->count();
+
+        return response()->json([
+            'laki_laki' => $lakiLaki,
+            'perempuan' => $perempuan,
         ]);
+    }
 
-        // Jika validasi gagal
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 400);
-        }
-
-        // Update hanya field yang diberikan dalam request
-        if ($request->has('nama')) {
-            $user->nama = $request->nama;
-        }
-
-        if ($request->has('email')) {
-            $user->email = $request->email;
-        }
-
-        if ($request->has('foto_profil')) {
-            $image = $request->file('foto_profil');
-            $path = $image->store('profiles', 'public');
-            $user->foto_profil = $path;
-        }
-
-        if ($request->has('nomor_hp')) {
-            $user->nomor_hp = $request->nomor_hp;
-        }
-
-        if ($request->has('agama')) {
-            $user->agama = $request->agama;
-        }
-
-        if ($request->has('jenis_kelamin')) {
-            $user->jenis_kelamin = $request->jenis_kelamin;
-        }
-
-        // Simpan perubahan
-        $user->save();
+    // Endpoint untuk guru
+    public function guruGender()
+    {
+        $lakiLaki = User::where('role', 'guru')->where('jenis_kelamin', 'L')->count();
+        $perempuan = User::where('role', 'guru')->where('jenis_kelamin', 'P')->count();
 
         return response()->json([
-            'message' => 'Profil berhasil diperbarui',
-            'data' => $user
-        ], 200);
+            'laki_laki' => $lakiLaki,
+            'perempuan' => $perempuan,
+        ]);
     }
+
 
 }

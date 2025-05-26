@@ -17,8 +17,7 @@ return [
     'allowed_methods' => ['*'],  // Mengizinkan semua metode HTTP
 
     'allowed_origins' => [
-        'http://localhost:3000',  // Tambahkan URL frontend kamu di sini
-        // Contoh: 'https://your-frontend-domain.com'
+        'http://localhost:3000',  
     ],
 
     'allowed_origins_patterns' => [],  // Bisa biarkan kosong jika tidak perlu
