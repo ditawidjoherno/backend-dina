@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\User;
+use App\Models\Absensi; // ✅ Tambahkan ini
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
@@ -189,5 +190,46 @@ public function siswaGender()
         ]);
     }
 
+public function detailSiswa(Request $request)
+{
+    // Ambil nisn dari query string: ?nisn=...
+    $nisn = $request->query('nisn');
+
+    if (!$nisn) {
+        return response()->json([
+            'message' => 'NISN tidak diberikan.'
+        ], 400);
+    }
+
+    $siswa = User::where('nisn', $nisn)->first();
+
+    if (!$siswa) {
+        return response()->json([
+            'message' => 'Siswa tidak ditemukan.'
+        ], 404);
+    }
+
+    // Hitung statistik dari tabel absensi berdasarkan user_id
+    $hadir = Absensi::where('user_id', $siswa->id)->where('status', 'hadir')->count();
+    $terlambat = Absensi::where('user_id', $siswa->id)->where('status', 'terlambat')->count();
+    $tidakHadir = Absensi::where('user_id', $siswa->id)->where('status', 'tidak_hadir')->count();
+
+    return response()->json([
+        'nama' => $siswa->nama,
+        'kelas' => $siswa->kelas,
+        'nisn' => $siswa->nisn,
+        'jenis_kelamin' => $siswa->jenis_kelamin,
+        'agama' => $siswa->agama,
+        'tanggal_lahir' => $siswa->tanggal_lahir,
+        'no_hp' => $siswa->nomor_hp,
+        'email' => $siswa->email,
+        'foto' => $siswa->foto,
+        'statistik' => [
+            'hadir' => $hadir,
+            'terlambat' => $terlambat,
+            'tidak_hadir' => $tidakHadir,
+        ]
+    ]);
+}
 
 }

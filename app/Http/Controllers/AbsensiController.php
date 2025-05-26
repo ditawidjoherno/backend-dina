@@ -8,10 +8,12 @@ use Illuminate\Http\Request;
 use App\Models\Absensi;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class AbsensiController extends Controller
 {
-    // Tampilkan semua data absensi
+
 public function getStudentsByClass(Request $request)
 {
     $kelas = $request->query('kelas');
@@ -126,7 +128,6 @@ public function getAbsensi(Request $request)
     $kelas = $request->kelas;
     $tanggal = $request->tanggal;
 
-    // Ambil data absensi berdasarkan kelas dan tanggal
     $absensi = Absensi::with('user')
         ->where('kelas', $kelas)
         ->where('tanggal', $tanggal)
@@ -167,5 +168,251 @@ public function getAbsensi(Request $request)
     ]);
 }
 
+ public function getChartData()
+{
+    $kelasList = [
+        "10A", "10B", "10C", "10D",
+        "11A", "11B", "11C", "11D",
+        "12A", "12B", "12C", "12D"
+    ];
+
+    $data = [];
+
+    foreach ($kelasList as $kelas) {
+        $jumlahHadir = DB::table('absensi')
+            ->join('users', 'absensi.user_id', '=', 'users.id')
+            ->where('users.kelas', $kelas)
+            ->where('users.role', 'siswa')
+            ->whereDate('absensi.tanggal', now()->toDateString())
+            ->where('absensi.status', 'Hadir')
+            ->count();
+
+        $jumlahSiswa = DB::table('users')
+            ->where('kelas', $kelas)
+            ->where('role', 'siswa')
+            ->count();
+
+        $data[] = [
+            'kelas' => $kelas,
+            'hadir' => $jumlahHadir,
+            'total' => $jumlahSiswa,
+        ];
+    }
+
+    return response()->json($data);
+}
+
+public function getAbsensiStatistikHariIni()
+{
+    $tanggal = now()->toDateString();
+
+    // Total siswa
+    $totalSiswa = DB::table('users')
+        ->where('role', 'siswa')
+        ->count();
+
+    // Jumlah hadir
+    $jumlahHadir = DB::table('absensi')
+        ->join('users', 'absensi.user_id', '=', 'users.id')
+        ->where('users.role', 'siswa')
+        ->whereDate('absensi.tanggal', $tanggal)
+        ->where('absensi.status', 'Hadir')
+        ->count();
+
+    // Jumlah tidak hadir
+    $jumlahTidakHadir = DB::table('absensi')
+        ->join('users', 'absensi.user_id', '=', 'users.id')
+        ->where('users.role', 'siswa')
+        ->whereDate('absensi.tanggal', $tanggal)
+        ->where('absensi.status', 'Tidak Hadir')
+        ->count();
+
+    // Jumlah terlambat
+    $jumlahTerlambat = DB::table('absensi')
+        ->join('users', 'absensi.user_id', '=', 'users.id')
+        ->where('users.role', 'siswa')
+        ->whereDate('absensi.tanggal', $tanggal)
+        ->where('absensi.status', 'Terlambat')
+        ->count();
+
+    // Hitung persen tanpa koma (dibulatkan ke bawah)
+    $presentase = fn($jumlah) => $totalSiswa > 0 ? floor(($jumlah / $totalSiswa) * 100) : 0;
+
+    return response()->json([
+        'message' => 'Statistik absensi hari ini',
+        'tanggal' => $tanggal,
+        'data' => [
+            'hadir' => [
+                'jumlah' => $jumlahHadir,
+                'persen' => $presentase($jumlahHadir),
+            ],
+            'tidak_hadir' => [
+                'jumlah' => $jumlahTidakHadir,
+                'persen' => $presentase($jumlahTidakHadir),
+            ],
+            'terlambat' => [
+                'jumlah' => $jumlahTerlambat,
+                'persen' => $presentase($jumlahTerlambat),
+            ],
+            'total_siswa' => $totalSiswa,
+        ]
+    ]);
+}
+
+public function getAbsensiStatistikBulanan(Request $request)
+{
+    $bulan = $request->query('bulan', date('m'));
+    $tahun = $request->query('tahun', date('Y'));
+
+    $query = DB::table('absensi')
+        ->join('users', 'absensi.user_id', '=', 'users.id')
+        ->where('users.role', 'siswa')
+        ->whereYear('absensi.tanggal', $tahun)
+        ->whereMonth('absensi.tanggal', $bulan);
+
+    $jumlahHadir = (clone $query)->where('absensi.status', 'Hadir')->count();
+    $jumlahTidakHadir = (clone $query)->where('absensi.status', 'Tidak Hadir')->count();
+    $jumlahTerlambat = (clone $query)->where('absensi.status', 'Terlambat')->count();
+
+    $totalAbsensi = $jumlahHadir + $jumlahTidakHadir + $jumlahTerlambat;
+
+    if ($totalAbsensi > 0) {
+        $persenHadir = round(($jumlahHadir / $totalAbsensi) * 100);
+        $persenTidakHadir = round(($jumlahTidakHadir / $totalAbsensi) * 100);
+        $persenTerlambat = round(($jumlahTerlambat / $totalAbsensi) * 100);
+    } else {
+        $persenHadir = $persenTidakHadir = $persenTerlambat = 0;
+    }
+
+    return response()->json([
+        'message' => 'Statistik absensi bulanan (total 100%)',
+        'bulan' => $bulan,
+        'tahun' => $tahun,
+        'data' => [
+            [
+                'name' => 'Hadir',
+                'jumlah' => $persenHadir,
+                'color' => '#5CB338',
+                'hoverColor' => '#4AA62D',
+            ],
+            [
+                'name' => 'Tidak Hadir',
+                'jumlah' => $persenTidakHadir,
+                'color' => '#FB4141',
+                'hoverColor' => '#D93636',
+            ],
+            [
+                'name' => 'Terlambat',
+                'jumlah' => $persenTerlambat,
+                'color' => '#FFBB03',
+                'hoverColor' => '#E6A800',
+            ],
+        ],
+        'total_siswa' => DB::table('users')->where('role', 'siswa')->count(),
+    ]);
+}
+
+public function listAbsensi(Request $request)
+{
+    $bulan = $request->query('bulan', date('m'));
+    $tahun = $request->query('tahun', date('Y'));
+
+    $query = User::query();
+
+    // Filter hanya user dengan nisn tidak null dan tidak kosong
+    $query->whereNotNull('nisn')->where('nisn', '!=', '');
+
+    // Filter nama jika ada
+    if ($request->has('search') && $request->search !== '') {
+        $query->where('nama', 'like', '%' . $request->search . '%');
+    }
+
+    // Filter kelas jika ada dan bukan 'Semua Kelas'
+    if ($request->has('kelas') && $request->kelas !== 'Semua Kelas') {
+        $query->where('kelas', $request->kelas);
+    }
+
+    $users = $query->get();
+
+    $data = $users->map(function ($user) use ($bulan, $tahun) {
+        // Hitung absensi per status untuk user dan bulan/tahun tertentu
+        $absensiStats = DB::table('absensi')
+            ->where('user_id', $user->id)
+            ->whereYear('tanggal', $tahun)
+            ->whereMonth('tanggal', $bulan)
+            ->selectRaw("SUM(CASE WHEN status = 'Hadir' THEN 1 ELSE 0 END) as hadir")
+            ->selectRaw("SUM(CASE WHEN status = 'Terlambat' THEN 1 ELSE 0 END) as terlambat")
+            ->selectRaw("SUM(CASE WHEN status = 'Tidak Hadir' THEN 1 ELSE 0 END) as tidak_hadir")
+            ->first();
+
+        return [
+            'id' => $user->id,
+            'nisn' => $user->nisn,
+            'nama' => $user->nama,
+            'class' => $user->kelas,
+            'hadir' => $absensiStats->hadir ?? 0,
+            'terlambat' => $absensiStats->terlambat ?? 0,
+            'tidakHadir' => $absensiStats->tidak_hadir ?? 0,
+        ];
+    });
+
+    return response()->json($data);
+}
+
+public function getAbsensiByNisn(Request $request)
+{
+    $nisn = $request->query('nisn');  // Ambil nisn dari query parameter
+
+    if (!$nisn) {
+        return response()->json([
+            'message' => 'Parameter nisn harus disertakan.'
+        ], 400);
+    }
+
+    $siswa = User::where('nisn', $nisn)->first();
+
+    if (!$siswa) {
+        return response()->json([
+            'message' => 'Siswa tidak ditemukan.'
+        ], 404);
+    }
+
+    // Ambil data absensi
+    $absensi = Absensi::where('user_id', $siswa->id)
+        ->orderBy('tanggal', 'desc')
+        ->get(['tanggal', 'status', 'waktu_absen']);
+
+    Carbon::setLocale('id');
+
+    $absensiFormatted = $absensi->map(function ($item) {
+        return [
+            'date' => Carbon::parse($item->tanggal)->translatedFormat('l, d F Y'),
+            'status' => $item->status,
+            'waktu' => $item->waktu_absen,
+        ];
+    });
+
+    $hadir = Absensi::where('user_id', $siswa->id)->where('status', 'hadir')->count();
+    $terlambat = Absensi::where('user_id', $siswa->id)->where('status', 'terlambat')->count();
+    $tidakHadir = Absensi::where('user_id', $siswa->id)->where('status', 'tidak_hadir')->count();
+
+    return response()->json([
+        'nama' => $siswa->nama,
+        'kelas' => $siswa->kelas,
+        'nisn' => $siswa->nisn,
+        'jenis_kelamin' => $siswa->jenis_kelamin,
+        'agama' => $siswa->agama,
+        'tanggal_lahir' => Carbon::parse($siswa->tanggal_lahir)->translatedFormat('d F Y'),
+        'no_hp' => $siswa->nomor_hp,
+        'email' => $siswa->email,
+        'foto' => $siswa->foto,
+        'statistik' => [
+            'hadir' => $hadir,
+            'terlambat' => $terlambat,
+            'tidak_hadir' => $tidakHadir,
+        ],
+        'absensi' => $absensiFormatted,
+    ]);
+}
 
 }

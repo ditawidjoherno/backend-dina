@@ -48,6 +48,13 @@ Route::post('/input-piket', [PiketController::class, 'inputPiket']);            
 Route::get('/kontribusi-piket', [PiketController::class, 'rekapKontribusiBulanan']);
 Route::get('/absensi-tour', [StudyTourController::class, 'getStudyTour']);
 Route::post('/input-tour', [StudyTourController::class, 'inputStudyTour']); 
+Route::get('/kehadiran-chart', [AbsensiController::class, 'getChartData']);
+Route::get('/statistik-hari-ini', [AbsensiController::class, 'getAbsensiStatistikHariIni']);
+Route::get('/statistik-bulanan', [AbsensiController::class, 'getAbsensiStatistikBulanan']);
+Route::get('/list-absensi-siswa', [AbsensiController::class, 'listAbsensi']);
+Route::get('/detail-siswa', [UserController::class, 'detailSiswa']);
+Route::get('/absensi-detail', [AbsensiController::class, 'getAbsensiByNisn']);
+
 // Route::middleware('auth:api')->get('/user', function (Request $request) {
 //     return $request->user();
 // });
